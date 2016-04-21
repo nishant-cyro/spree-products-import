@@ -43,7 +43,7 @@ class Spree::ProductImport < ActiveRecord::Base
   validates :products_csv, presence: true
 
   # callbacks
-  after_commit :start_product_import
+  after_save :start_product_import
 
   private
 
@@ -54,16 +54,14 @@ class Spree::ProductImport < ActiveRecord::Base
 
     def import_product_data
       @failed_import, @issues, @warnings, @headers, products_data_hash = [], [], [], [], {}
-      row = 0
       CSV.foreach(products_csv.path, headers: true, header_converters: :symbol, encoding: 'ISO-8859-1') do |row_data|
         @headers = row_data.headers if @headers.blank?
         if product_row?(row_data)
-          row += 1
-          products_data_hash[row] = { product_data: row_data }
+          products_data_hash[row_data[:sku]] = { product_data: build_product_data(row_data) }
         else
-          products_data_hash[row] ||= { product_data: {} }
-          products_data_hash[row][:variants_data] ||= []
-          products_data_hash[row][:variants_data] << row_data
+          products_data_hash[row_data[:parent_sku]] ||= { product_data: {} }
+          products_data_hash[row_data[:parent_sku]][:variants_data] ||= []
+          products_data_hash[row_data[:parent_sku]][:variants_data] << build_variant_data(row_data)
         end
       end
 
@@ -81,9 +79,31 @@ class Spree::ProductImport < ActiveRecord::Base
       deliver_email
     end
 
+    def build_variant_data(row_data)
+      row_data[:option_types] = build_data_with_key(row_data, :option_types, 'option_type_')
+      row_data[:images] = build_data_with_key(row_data, :images, 'image_')
+      row_data
+    end
+
+    def build_product_data(row_data)
+      row_data[:properties] = build_data_with_key(row_data, :properties, 'property_')
+      row_data[:option_types] = build_data_with_key(row_data, :option_types, 'option_type_')
+      row_data[:taxons] = build_data_with_key(row_data, :taxons, 'taxon_')
+      row_data[:images] = build_data_with_key(row_data, :images, 'image_')
+      row_data
+    end
+
+    def build_data_with_key(row_data, data_key, key_matcher)
+      row_data.map do |variant_key, variant_value|
+        if variant_value.present? && variant_key.to_s.starts_with?(key_matcher)
+          "#{ variant_key.to_s.gsub(key_matcher, '') } -> #{ variant_value }"
+        end
+      end.compact.join(',')
+    end
+
     # CSV row is considered a product detail row if it contains Name OR Slug.
     def product_row?(product_data)
-      product_data[:slug].present? || product_data[:name].present?
+      product_data[:parent_data].blank?
     end
 
     def deliver_email
