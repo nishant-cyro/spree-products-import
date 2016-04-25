@@ -54,7 +54,7 @@ class Spree::ProductImport < ActiveRecord::Base
 
     def import_product_data
       @failed_import, @issues, @warnings, @headers, products_data_hash = [], [], [], [], {}
-      CSV.foreach(products_csv.path, headers: true, header_converters: :symbol, encoding: 'ISO-8859-1') do |row_data|
+      CSV.foreach(products_csv.url, headers: true, header_converters: :symbol, encoding: 'ISO-8859-1') do |row_data|
         @headers = row_data.headers if @headers.blank?
         if product_row?(row_data)
           products_data_hash[row_data[:sku]] = { product_data: build_product_data(row_data) }
