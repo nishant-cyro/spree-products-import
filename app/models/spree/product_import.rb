@@ -53,7 +53,7 @@ class Spree::ProductImport < ActiveRecord::Base
     # handle_asynchronously :start_product_import
 
     def products_csv_path
-      if products_csv.responds_to(:s3_object)
+      if products_csv.respond_to?(:s3_object)
         open(products_csv.url).path
       else
         products_csv.path
