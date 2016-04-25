@@ -35,7 +35,7 @@ class Spree::ProductImport < ActiveRecord::Base
   IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif'].to_set
   OPTIONS_SEPERATOR = '->'
 
-  has_attached_file :products_csv, validate_media_type: false
+  has_attached_file :products_csv, validate_media_type: false, s3_protocol: 'https'
 
   # validations
   validates_attachment :products_csv, presence: true, content_type: { content_type: ["text/csv", "text/plain", 'application/vnd.ms-excel'] }
