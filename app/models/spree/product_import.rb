@@ -54,7 +54,7 @@ class Spree::ProductImport < ActiveRecord::Base
 
     def temp_file
       data = open(products_csv.url).read
-      TempFile.new("tmp-#{ Time.current }").tap do |f|
+      Tempfile.new("tmp-#{ Time.current }").tap do |f|
         f.write(data)
         f.close
       end
