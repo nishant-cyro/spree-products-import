@@ -70,8 +70,10 @@ class Spree::ProductImport < ActiveRecord::Base
 
     def import_product_data
       @failed_import, @issues, @warnings, @headers, products_data_hash = [], [], [], [], {}
+      total_rows, failed_rows = 0, 0
       CSV.foreach(products_csv_path, headers: true, header_converters: :symbol, encoding: 'ISO-8859-1') do |row_data|
         @headers = row_data.headers if @headers.blank?
+        total_rows += 1
         if product_row?(row_data)
           products_data_hash[row_data[:sku]] = { product_data: build_product_data(row_data) }
         else
@@ -87,12 +89,13 @@ class Spree::ProductImport < ActiveRecord::Base
           product_data_hash = remove_blank_attributes(product_data_raw_hash)
           @success, @issues = import_product_from(product_data_hash)
           unless (@success && @issues.empty?)
+            failed_rows += 1
             @failed_import << [product_data_raw_hash, @issues]
           end
         end
       end
 
-      deliver_email
+      deliver_email(total_rows, failed_rows)
     end
 
     def build_variant_data(row_data)
@@ -127,7 +130,7 @@ class Spree::ProductImport < ActiveRecord::Base
         Spree::ProductImportMailer.import_data_success_email(id, "products_csv").deliver_later
       else
         failed_import_csv = build_csv_from_failed_import_list
-        Spree::ProductImportMailer.import_data_failure_email(id, "products_csv", failed_import_csv).deliver_later
+        Spree::ProductImportMailer.import_data_failure_email(id, "products_csv", failed_import_csv, total_rows, failed_rows).deliver_later
       end
     end
 

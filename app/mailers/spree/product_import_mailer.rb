@@ -1,12 +1,14 @@
 class Spree::ProductImportMailer < Spree::BaseMailer
-  def import_data_success_email(import_product_id, file_field)
+  def import_data_success_email(import_product_id, file_field, total_rows)
     load_data_and_set_original_file_as_attachment(import_product_id, file_field)
+    @total_rows = total_rows
     subject = "Data imported successfully"
     mail(to: @import_product.user.email, from: from_address, subject: subject)
   end
 
-  def import_data_failure_email(import_product_id, file_field, failed_csv)
+  def import_data_failure_email(import_product_id, file_field, failed_csv, total_rows, failed_rows)
     load_data_and_set_original_file_as_attachment(import_product_id, file_field)
+    @total_rows = total_rows; @failed_rows = failed_rows
     attachments['failed.csv'] = failed_csv
     subject = "Data import failed"
     mail(to: @import_product.user.email, from: from_address, subject: subject)
