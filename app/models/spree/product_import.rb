@@ -125,9 +125,9 @@ class Spree::ProductImport < ActiveRecord::Base
       product_data[:parent_sku].blank?
     end
 
-    def deliver_email
+    def deliver_email(total_rows, failed_rows)
       if @failed_import.empty?
-        Spree::ProductImportMailer.import_data_success_email(id, "products_csv").deliver_later
+        Spree::ProductImportMailer.import_data_success_email(id, "products_csv", total_rows).deliver_later
       else
         failed_import_csv = build_csv_from_failed_import_list
         Spree::ProductImportMailer.import_data_failure_email(id, "products_csv", failed_import_csv, total_rows, failed_rows).deliver_later
