@@ -74,19 +74,24 @@ class Spree::ProductImport < ActiveRecord::Base
       CSV.foreach(products_csv_path, headers: true, header_converters: :symbol, encoding: 'ISO-8859-1') do |row_data|
         @headers = row_data.headers if @headers.blank?
         total_rows += 1
+
         if product_row?(row_data)
           products_data_hash[row_data[:sku]] = { product_data: build_product_data(row_data) }
         else
+
           products_data_hash[row_data[:parent_sku]] ||= { product_data: {} }
           products_data_hash[row_data[:parent_sku]][:variants_data] ||= []
           products_data_hash[row_data[:parent_sku]][:variants_data] << build_variant_data(row_data)
         end
       end
 
+
       products_data_hash.each do |key, product_data_raw_hash|
+
         if product_data_raw_hash.present?
           @success, @issues = true, []
           product_data_hash = remove_blank_attributes(product_data_raw_hash)
+
           @success, @issues = import_product_from(product_data_hash)
           unless (@success && @issues.empty?)
             failed_rows += 1
@@ -99,17 +104,25 @@ class Spree::ProductImport < ActiveRecord::Base
     end
 
     def build_variant_data(row_data)
-      row_data[:option_types] = build_data_with_key(row_data, :option_types, 'option_type_')
+      row_data[:option_values] = build_data_with_key(row_data, :option_types, 'option_type_')
       row_data[:images] = build_data_with_key(row_data, :images, 'image_')
       row_data
     end
 
     def build_product_data(row_data)
       row_data[:properties] = build_data_with_key(row_data, :properties, 'property_')
-      row_data[:option_types] = build_data_with_key(row_data, :option_types, 'option_type_')
+      row_data[:option_types] = build_option_type_with_key(row_data, :option_types, 'option_type_')
       row_data[:taxons] = build_data_with_key(row_data, :taxons, 'taxon_')
       row_data[:images] = build_data_with_key(row_data, :images, 'image_')
       row_data
+    end
+
+    def build_option_type_with_key(row_data, data_key, key_matcher)
+      row_data.map do |variant_key, variant_value|
+        if variant_value.present? && variant_key.to_s.starts_with?(key_matcher)
+          variant_key.to_s.gsub(key_matcher, '')
+        end
+      end.compact.join(',')
     end
 
     def build_data_with_key(row_data, data_key, key_matcher)
@@ -137,7 +150,7 @@ class Spree::ProductImport < ActiveRecord::Base
     def import_product_from(product_data_hash)
       product_data, variants_data = product_data_hash[:product_data], product_data_hash[:variants_data]
 
-      if product_data.present?
+      if product_data.present? || variants_data.present?
         attribute_fields = build_data_hash(product_data, IMPORTABLE_PRODUCT_FIELDS, RELATED_PRODUCT_FIELDS)
 
         begin
@@ -152,16 +165,25 @@ class Spree::ProductImport < ActiveRecord::Base
             end
             add_images(product, product_data[:images]) if product_data[:images].present?
 
-            if product.present? && variants_data.present?
+
+
+            if variants_data.present?
+
               variants_data.each do |variant_data|
+
                 attribute_fields = build_data_hash(variant_data, IMPORTABLE_VARIANT_FIELDS, RELATED_VARIANT_FIELDS)
+                product = find_or_build_product_for_variant(variant_data)
                 variant = find_or_build_variant(product, attribute_fields)
                 set_variant_options(variant, variant_data[:option_values]) if variant_data[:option_values]
+
                 variant.save!
+
                 add_stocks(variant, variant_data[:stocks]) if variant_data[:stocks].present?
                 add_images(variant, variant_data[:images]) if variant_data[:images].present?
               end
             end
+
+
 
             product.save!
           end
@@ -184,6 +206,17 @@ class Spree::ProductImport < ActiveRecord::Base
       end
 
       attribute_fields
+    end
+
+    def find_or_build_product_for_variant(variant_data)
+      if variant_data[:parent_sku].present? && variant = Spree::Variant.find_by(sku: variant_data[:parent_sku])
+        raise 'Product not present for specified parent_sku' if (product = variant.product).blank?
+      elsif variant_data[:sku] && variant = Spree::Variant.find_by(sku: variant_data[:sku])
+        product = variant.product || Spree::Product.new
+      else
+        product = Spree::Product.new
+      end
+      product
     end
 
     def find_or_build_product(product_data)
@@ -332,14 +365,11 @@ class Spree::ProductImport < ActiveRecord::Base
       return if stocks_data.empty?
       stocks_data.each do |stock_data|
 
-        if (stock = stock_data.split(OPTIONS_SEPERATOR).collect(&:squish)).blank?
+        if (stock = stock_data).blank?
           return
-        elsif stock.length == 1
-          stock_location = Spree::StockLocation.find_by(default: true)
-          stock_count = stock[0]
         else
-          stock_location = Spree::StockLocation.find_by('lower(admin_name) = ?', stock[0].downcase)
-          stock_count = stock[1]
+          stock_location = Spree::StockLocation.find_by(default: true)
+          stock_count = stock
         end
 
         if stock_location.blank?
@@ -359,9 +389,11 @@ class Spree::ProductImport < ActiveRecord::Base
         csv << column_names
         @failed_import.each do |data_row|
           data_hash, issues = data_row[0], data_row[1]
-          data = data_hash[:product_data].fields
-          data << issues.join(', ')
-          csv << data
+          if data_hash[:product_data].present?
+            data = data_hash[:product_data].fields
+            data << issues.join(', ')
+            csv << data
+          end
           if data_hash[:variants_data].present?
             data_hash[:variants_data].each do |variant_data|
               csv << variant_data.fields
