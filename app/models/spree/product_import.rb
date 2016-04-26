@@ -43,7 +43,7 @@ class Spree::ProductImport < ActiveRecord::Base
   validates :products_csv, presence: true
 
   # callbacks
-  # after_save :start_product_import
+  after_save :start_product_import
 
   private
 
@@ -52,9 +52,17 @@ class Spree::ProductImport < ActiveRecord::Base
     end
     # handle_asynchronously :start_product_import
 
+    def temp_file
+      data = open(products_csv.url).read
+      TempFile.new("tmp-#{ Time.current }").tap do |f|
+        f.write(data)
+        f.close
+      end
+    end
+
     def products_csv_path
       if products_csv.respond_to?(:s3_object)
-        open(products_csv.url).path
+        temp_file.path
       else
         products_csv.path
       end
