@@ -184,10 +184,10 @@ class Spree::ProductImport < ActiveRecord::Base
     end
 
     def find_or_build_product(product_data)
-      if product_data[:slug].present?
-        raise 'Product not present for specified slug' if (product = Spree::Product.find_by('lower(slug) = ?', product_data[:slug].downcase)).blank?
-      else
-        product = Spree::Product.new
+      if product_data[:parent_sku].present?
+        raise 'Product not present for specified parent_sku' if (product = Spree::Product.find_by(sku: product_data[:parent_sku])).blank?
+      elsif product_data[:sku]
+        product = Spree::Product.find_by(sku: product_data[:parent_sku]) || Spree::Product.new
       end
 
       product_data[:description] = CGI.unescapeHTML(product_data[:description]) if product_data[:description].present?
