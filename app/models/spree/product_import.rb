@@ -119,7 +119,7 @@ class Spree::ProductImport < ActiveRecord::Base
 
     # CSV row is considered a product detail row if it contains Name OR Slug.
     def product_row?(product_data)
-      product_data[:parent_data].blank?
+      product_data[:parent_sku].blank?
     end
 
     def deliver_email
