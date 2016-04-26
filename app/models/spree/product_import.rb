@@ -43,7 +43,7 @@ class Spree::ProductImport < ActiveRecord::Base
   validates :products_csv, presence: true
 
   # callbacks
-  after_save :start_product_import
+  # after_save :start_product_import
 
   private
 
