@@ -2,7 +2,7 @@ class Spree::ProductImportMailer < Spree::BaseMailer
   def import_data_success_email(import_product_id, file_field, total_rows)
     load_data_and_set_original_file_as_attachment(import_product_id, file_field)
     @total_rows = total_rows
-    subject = "Data imported successfully"
+    subject = "Product bulk upload status #{ Time.current.strftime('%b %d %Y %H:%M:%S') }"
     mail(to: @import_product.user.email, from: from_address, subject: subject)
   end
 
@@ -10,7 +10,7 @@ class Spree::ProductImportMailer < Spree::BaseMailer
     load_data_and_set_original_file_as_attachment(import_product_id, file_field)
     @total_rows = total_rows; @failed_rows = failed_rows
     attachments['failed.csv'] = failed_csv
-    subject = "Data import failed"
+    subject = "Product bulk upload status #{ Time.current.strftime('%b %d %Y %H:%M:%S') } "
     mail(to: @import_product.user.email, from: from_address, subject: subject)
   end
 
