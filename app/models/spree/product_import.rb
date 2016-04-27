@@ -90,7 +90,8 @@ class Spree::ProductImport < ActiveRecord::Base
 
         if product_data_raw_hash.present?
           @success, @issues = true, []
-          product_data_hash = remove_blank_attributes(product_data_raw_hash, [:properties])
+          product_data_hash = remove_blank_attributes(product_data_raw_hash)
+
           @success, @issues = import_product_from(product_data_hash)
           unless (@success && @issues.empty?)
             failed_rows += 1
@@ -152,7 +153,7 @@ class Spree::ProductImport < ActiveRecord::Base
       if product_data.present? || variants_data.present?
         attribute_fields = build_data_hash(product_data, IMPORTABLE_PRODUCT_FIELDS, RELATED_PRODUCT_FIELDS)
 
-        beg
+        begin
           ActiveRecord::Base.transaction do
             product = find_or_build_product(attribute_fields)
             set_missing_product_options(product, product_data[:option_types]) if product_data[:option_types].present?
@@ -163,6 +164,8 @@ class Spree::ProductImport < ActiveRecord::Base
               add_stocks(product, product_data[:stocks]) if product_data[:stocks].present?
             end
             add_images(product, product_data[:images]) if product_data[:images].present?
+
+
 
             if variants_data.present?
 
@@ -179,6 +182,8 @@ class Spree::ProductImport < ActiveRecord::Base
                 add_images(variant, variant_data[:images]) if variant_data[:images].present?
               end
             end
+
+
 
             product.save!
           end
@@ -240,9 +245,9 @@ class Spree::ProductImport < ActiveRecord::Base
       variant
     end
 
-    def remove_blank_attributes(raw_hash, except_product_fields)
+    def remove_blank_attributes(raw_hash)
       dup_hash = {}
-      dup_hash[:product_data] = (raw_hash[:product_data].select { |k,v| (k.present? && v.present?) || (k.present? && k.in?(except_product_fields)) }.to_h)
+      dup_hash[:product_data] = (raw_hash[:product_data].select { |k,v| k.present? && v.present? }.to_h)
       if raw_hash[:variants_data].present?
         dup_hash[:variants_data] = []
         raw_hash[:variants_data].each do |variant_data|
@@ -316,12 +321,8 @@ class Spree::ProductImport < ActiveRecord::Base
       properties.to_s.split(',').compact.each do |property_data|
         property_name, property_value = property_data.split(OPTIONS_SEPERATOR).collect(&:squish)
         if product_property = product.product_properties.joins(:property).find_by('lower(spree_properties.name) = ?', property_name.downcase)
-          if property_value.blank?
-            product_property.destroy
-          else
-            product_property.update_column(:value, property_value)
-          end
-        elsif property = (Spree::Property.find_by('lower(name) = ?', property_name.downcase) || Spree::Property.create!(name: property_name, presentation: property_name.titleize)) && property_value.present?
+          product_property.update_column(:value, property_value)
+        elsif property = (Spree::Property.find_by('lower(name) = ?', property_name.downcase) || Spree::Property.create!(name: property_name, presentation: property_name.titleize))
           product.product_properties.build(property_id: property.id, value: property_value)
         end
       end
