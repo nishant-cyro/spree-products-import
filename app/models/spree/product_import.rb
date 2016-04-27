@@ -377,7 +377,7 @@ class Spree::ProductImport < ActiveRecord::Base
       end
 
       if stock_item = variant.stock_items.find_or_create_by!(stock_location: stock_location)
-        stock_item.adjust_count_on_hand(stock_count)
+        stock_item.adjust_count_on_hand(stock_count.to_i)
       end
     end
 
