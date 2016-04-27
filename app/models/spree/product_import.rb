@@ -62,7 +62,7 @@ class Spree::ProductImport < ActiveRecord::Base
 
     def products_csv_path
       if products_csv.respond_to?(:s3_object)
-        temp_file(product_csv.url).path
+        temp_file(products_csv.url).path
       else
         products_csv.path
       end
