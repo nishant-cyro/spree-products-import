@@ -361,26 +361,19 @@ class Spree::ProductImport < ActiveRecord::Base
         model_obj
       end
 
-      stocks_data = stocks.to_s.split(',')
-      return if stocks_data.empty?
-      stocks_data.each do |stock_data|
+      return if stocks.blank?
+      stock_location = Spree::StockLocation.find_by(default: true) || Spree::StockLocation.last
+      stock_count = stocks
 
-        if (stock = stock_data).blank?
-          return
-        else
-          stock_location = Spree::StockLocation.find_by(default: true)
-          stock_count = stock
-        end
+      if stock_location.blank?
+        raise 'Stock Location not found'
+      end
 
-        if stock_location.blank?
-          raise 'Stock Location not found'
-        end
-
-        if stock_item = variant.stock_items.find_or_create_by!(stock_location: stock_location)
-          stock_item.set_count_on_hand(stock_count)
-        end
+      if stock_item = variant.stock_items.find_or_create_by!(stock_location: stock_location)
+        stock_item.set_count_on_hand(stock_count)
       end
     end
+
 
     def build_csv_from_failed_import_list
       column_names = @headers + [:issues]
