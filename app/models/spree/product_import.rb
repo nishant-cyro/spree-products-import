@@ -52,9 +52,9 @@ class Spree::ProductImport < ActiveRecord::Base
     end
     # handle_asynchronously :start_product_import
 
-    def temp_file
-      data = open(products_csv.url).read
-      Tempfile.new("tmp-#{ Time.current }").tap do |f|
+    def temp_file(url)
+      data = open(url).read
+      Tempfile.new("tmp-#{ Time.current.to_i }", 'tmp/', encoding: "ASCII-8BIT").tap do |f|
         f.write(data)
         f.close
       end
@@ -62,7 +62,7 @@ class Spree::ProductImport < ActiveRecord::Base
 
     def products_csv_path
       if products_csv.respond_to?(:s3_object)
-        temp_file.path
+        temp_file(product_csv.url).path
       else
         products_csv.path
       end
@@ -113,8 +113,16 @@ class Spree::ProductImport < ActiveRecord::Base
       row_data[:properties] = build_data_with_key(row_data, :properties, 'property_')
       row_data[:option_types] = build_option_type_with_key(row_data, :option_types, 'option_type_')
       row_data[:taxons] = build_data_with_key(row_data, :taxons, 'taxon_')
-      row_data[:images] = build_data_with_key(row_data, :images, 'image_')
+      row_data[:images] = build_image_with_key(row_data, :images, 'image_')
       row_data
+    end
+
+    def build_image_with_key(row_data, data_key, key_matcher)
+      row_data.map do |variant_key, variant_value|
+        if variant_value.present? && variant_key.to_s.starts_with?(key_matcher)
+          variant_value.to_s
+        end
+      end.compact.join(',')
     end
 
     def build_option_type_with_key(row_data, data_key, key_matcher)
@@ -165,14 +173,14 @@ class Spree::ProductImport < ActiveRecord::Base
             end
             add_images(product, product_data[:images]) if product_data[:images].present?
 
-
+            product.save! if product
 
             if variants_data.present?
 
               variants_data.each do |variant_data|
 
                 attribute_fields = build_data_hash(variant_data, IMPORTABLE_VARIANT_FIELDS, RELATED_VARIANT_FIELDS)
-                product = find_or_build_product_for_variant(variant_data)
+                product ||= find_or_build_product_for_variant(variant_data)
                 variant = find_or_build_variant(product, attribute_fields)
                 set_variant_options(variant, variant_data[:option_values]) if variant_data[:option_values]
 
@@ -183,9 +191,8 @@ class Spree::ProductImport < ActiveRecord::Base
               end
             end
 
-
-
             product.save!
+
           end
         rescue Exception => exception
           @issues << "ERROR: #{ exception.message }"
@@ -396,22 +403,10 @@ class Spree::ProductImport < ActiveRecord::Base
       end
     end
 
-    def add_images(model_obj, image_dir)
-      return unless image_dir
-      image_dir.squish!
-      load_images(image_dir).each do |image_file|
-        model_obj.images << Spree::Image.create(attachment: File.new("#{ image_dir }/#{ image_file }", 'r'))
+    def add_images(model_obj, images)
+      return unless images.present?
+      images.split(',').each do |image|
+        model_obj.images << Spree::Image.create(attachment: open(image))
       end
     end
-
-    def load_images(image_dir)
-      if Dir.exists?(image_dir)
-        Dir.open(image_dir).entries.select do |entry|
-          IMAGE_EXTENSIONS.include? File.extname(entry).try(:downcase)
-        end
-      else
-        raise 'Image directory not found'
-      end
-    end
-
 end
