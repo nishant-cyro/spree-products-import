@@ -105,7 +105,7 @@ class Spree::ProductImport < ActiveRecord::Base
 
     def build_variant_data(row_data)
       row_data[:option_values] = build_data_with_key(row_data, :option_types, 'option_type_')
-      row_data[:images] = build_data_with_key(row_data, :images, 'image_')
+      row_data[:images] = build_image_with_key(row_data, :images, 'image_')
       row_data
     end
 
